@@ -15,10 +15,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-loader</artifactId>
-            <version>2.4.13</version>
-<!--            <scope>provided</scope>-->
+            <scope>provided</scope>
         </dependency>
-
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
     </dependencies>
 
     <properties>
@@ -29,10 +31,39 @@
     <build>
         <plugins>
             <plugin>
+                <artifactId>maven-shade-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <relocations>
+                                <relocation>
+                                    <pattern>com.github.benmanes.caffeine</pattern>
+                                    <shadedPattern>com.seewo.psd.bootx.loader.shaded.caffeine</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>com.google.errorprone.annotations</pattern>
+                                    <shadedPattern>com.seewo.psd.bootx.loader.shaded.annotations</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.checkerframework</pattern>
+                                    <shadedPattern>com.seewo.psd.bootx.loader.shaded.checkerframework</shadedPattern>
+                                </relocation>
+                            </relocations>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <version>3.2.2</version>
             </plugin>
+
         </plugins>
+
     </build>
 </project>

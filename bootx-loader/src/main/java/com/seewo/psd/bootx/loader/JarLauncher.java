@@ -16,9 +16,18 @@
  */
 package com.seewo.psd.bootx.loader;
 
+import java.net.URL;
+
 public class JarLauncher extends org.springframework.boot.loader.JarLauncher {
+
+    @Override
+    protected ClassLoader createClassLoader(URL[] urls) throws Exception {
+        System.out.println(">>>>>>>in createClassLoader");
+        return new CachedLaunchedURLClassLoader(urls, getClass().getClassLoader());
+    }
+
     public static void main(String[] args) throws Exception {
-        System.out.println(">>>>>>>>>>>>>>>>.in my MyJarLauncher");
-        org.springframework.boot.loader.JarLauncher.main(args);
+        System.out.println(">>>>>>>>>>>>>>>>.in my MyJarLauncher <<<<<<");
+        new JarLauncher().launch(args);
     }
 }
