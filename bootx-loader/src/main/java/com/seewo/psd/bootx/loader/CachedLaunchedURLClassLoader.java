@@ -24,10 +24,6 @@ public class CachedLaunchedURLClassLoader extends LaunchedURLClassLoader {
     protected Cache<String, Optional<Enumeration<URL>>> resourcesUrlCache = Caffeine.newBuilder().maximumSize(4000)
             .expireAfterWrite(60, SECONDS).build();
 
-    protected Cache<String, Optional<Package>> packageCache = Caffeine.newBuilder().initialCapacity(4000)
-            .maximumSize(4000)
-            .expireAfterWrite(120, SECONDS).recordStats().build();
-
     public CachedLaunchedURLClassLoader(URL[] urls, ClassLoader parent) {
         super(urls, parent);
         System.out.println(">>>>>>>>in CachedLaunchedURLClassLoader");
@@ -55,7 +51,7 @@ public class CachedLaunchedURLClassLoader extends LaunchedURLClassLoader {
                         enumeration = CachedLaunchedURLClassLoader.super.findResources(name);
                     } catch (IOException e) {
                     }
-                    return enumeration != null ? Optional.of(enumeration) : Optional.empty();
+                    return (enumeration != null && enumeration.hasMoreElements()) ? Optional.of(enumeration) : Optional.empty();
                 }
         );
         return urlOptional.orElse(null);
