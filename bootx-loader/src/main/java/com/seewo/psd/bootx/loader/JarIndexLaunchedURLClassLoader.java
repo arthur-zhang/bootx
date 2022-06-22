@@ -61,7 +61,7 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
     private volatile DefinePackageCallType definePackageCallType;
 
     private static Map<String, Set<String>> prefixMap = null; // jarname to package
-    private static boolean DEBUG = true;
+    private static boolean DEBUG = false;
 
     static {
         try {
@@ -72,7 +72,8 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
 
     /**
      * Create a new {@link org.springframework.boot.loader.LaunchedURLClassLoader} instance.
-     * @param urls the URLs from which to load classes and resources
+     *
+     * @param urls   the URLs from which to load classes and resources
      * @param parent the parent class loader for delegation
      */
     public JarIndexLaunchedURLClassLoader(URL[] urls, ClassLoader parent) {
@@ -81,9 +82,10 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
 
     /**
      * Create a new {@link org.springframework.boot.loader.LaunchedURLClassLoader} instance.
+     *
      * @param exploded if the underlying archive is exploded
-     * @param urls the URLs from which to load classes and resources
-     * @param parent the parent class loader for delegation
+     * @param urls     the URLs from which to load classes and resources
+     * @param parent   the parent class loader for delegation
      */
     public JarIndexLaunchedURLClassLoader(boolean exploded, URL[] urls, ClassLoader parent) {
         this(exploded, null, urls, parent);
@@ -91,10 +93,11 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
 
     /**
      * Create a new {@link org.springframework.boot.loader.LaunchedURLClassLoader} instance.
-     * @param exploded if the underlying archive is exploded
+     *
+     * @param exploded    if the underlying archive is exploded
      * @param rootArchive the root archive or {@code null}
-     * @param urls the URLs from which to load classes and resources
-     * @param parent the parent class loader for delegation
+     * @param urls        the URLs from which to load classes and resources
+     * @param parent      the parent class loader for delegation
      * @since 2.3.1
      */
     public JarIndexLaunchedURLClassLoader(boolean exploded, Archive rootArchive, URL[] urls, ClassLoader parent) {
@@ -104,10 +107,11 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
 
         initJarIndex(urls);
     }
+
     private static final Map<String, List<URL>> package2UrlMap = new ConcurrentHashMap<>();
 
     private void initJarIndex(URL[] urls) {
-        Map<String, URL>  urlMap = extracted(urls);
+        Map<String, URL> urlMap = extracted(urls);
         prefixMap.forEach((jarName, packageNameSet) -> {
             URL url = urlMap.get(jarName);
             if (url == null) return;
@@ -123,9 +127,9 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
         for (URL url : urls) {
             String urlStr = url.toString();
             int idx = urlStr.indexOf(".jar!");
-            if(idx < 0) continue;
+            if (idx < 0) continue;
             if (urlStr.endsWith("!/")) {
-                urlStr = urlStr.substring(idx + ".jar!".length(), urlStr.length()-2);
+                urlStr = urlStr.substring(idx + ".jar!".length(), urlStr.length() - 2);
             } else {
                 urlStr = urlStr.substring(idx + ".jar!".length());
             }
@@ -142,8 +146,7 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
         Handler.setUseFastConnectionExceptions(true);
         try {
             return super.findResource(name);
-        }
-        finally {
+        } finally {
             Handler.setUseFastConnectionExceptions(false);
         }
     }
@@ -156,8 +159,7 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
         Handler.setUseFastConnectionExceptions(true);
         try {
             return new UseFastConnectionExceptionsEnumeration(super.findResources(name));
-        }
-        finally {
+        } finally {
             Handler.setUseFastConnectionExceptions(false);
         }
     }
@@ -200,86 +202,90 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
             }
         };
     }
-        @Override
+
+    @Override
     protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
         // load loader classes directly
-        if (name.startsWith("org.springframework.boot.loader.") || name.startsWith("com.seewo.psd.bootx.loader.")) {
-            try {
-                Class<?> result = loadClassInLaunchedClassLoader(name);
-                if (resolve) {
-                    resolveClass(result);
+        Handler.setUseFastConnectionExceptions(true);
+        try {
+            synchronized (getClassLoadingLock(name)) {
+
+                Class<?> loadedClass = findLoadedClass(name);
+                if (loadedClass != null) return loadedClass;
+                if (name.startsWith("org.springframework.boot.loader.") || name.startsWith("com.seewo.psd.bootx.loader.")) {
+                    try {
+                        Class<?> result = loadClassInLaunchedClassLoader(name);
+                        if (resolve) {
+                            resolveClass(result);
+                        }
+                        return result;
+                    } catch (ClassNotFoundException ex) {
+                    }
                 }
-                return result;
-            }
-            catch (ClassNotFoundException ex) {
-            }
-        }
 
-        // skip java.*, org.w3c.dom.* com.sun.*
-        if (!name.startsWith("java") && !name.contains("org.w3c.dom.") && !name.contains("xml") &&!name.startsWith("com.sun")) {
+                // skip java.*, org.w3c.dom.* com.sun.*
+                if (!name.startsWith("java") && !name.contains("org.w3c.dom.") && !name.contains("xml") && !name.startsWith("com.sun")) {
 
-            if (DEBUG) System.out.println(">>>>>loading " + name);
-            int lastDot = name.lastIndexOf('.');
-            if (lastDot >= 0) {
-                String packageName = name.substring(0, lastDot);
-                String packageEntryName = packageName.replace('.', '/');
-                String path = name.replace('.', '/').concat(".class");
+                    if (DEBUG) System.out.println(">>>>>loading " + name);
+                    int lastDot = name.lastIndexOf('.');
+                    if (lastDot >= 0) {
+                        String packageName = name.substring(0, lastDot);
+                        String packageEntryName = packageName.replace('.', '/');
+                        String path = name.replace('.', '/').concat(".class");
 
-                List<URL> urls = package2UrlMap.get(packageEntryName);
-                if (DEBUG) System.out.println(">>>>jar list not null: " + name);
-                if (urls != null) {
-                    if (DEBUG) System.out.println(">>>>urls not null: " + name);
-                    for (int i = 0; i < urls.size(); i++) {
-                        URL base = urls.get(i);
-                        if (DEBUG) System.out.println(">>>>process url: " + base + "\t" + packageEntryName + "\t" + path);
+                        List<URL> urls = package2UrlMap.get(packageEntryName);
+                        if (DEBUG) System.out.println(">>>>jar list not null: " + name);
+                        if (urls != null) {
+                            if (DEBUG) System.out.println(">>>>urls not null: " + name);
+                            for (int i = 0; i < urls.size(); i++) {
+                                URL base = urls.get(i);
+                                if (DEBUG)
+                                    System.out.println(">>>>process url: " + base + "\t" + packageEntryName + "\t" + path);
 //                        JarURLConnection urlConnection = (JarURLConnection) base.openConnection();
 //                        JarFile jarFile = urlConnection.getJarFile();
 //                        JarEntry jarEntry = jarFile.getJarEntry(path);
 
 
-                        Resource resource = getResource(base, packageName, path);
-                        if (resource == null) {
+                                Resource resource = getResource(base, packageName, path);
+                                if (resource == null) {
 //							System.out.println(">>>>> resource is null: " + base + "\t" + packageName + "\t" + path);
-                            continue;
-                        }
-                        Class<?> definedClass;
-                        try {
-                            byte[] bytes = resource.getBytes();
-                            definedClass = defineClass(name, bytes, 0, bytes.length, new CodeSource(base,new CodeSigner[]{}));
+                                    continue;
+                                }
+                                Class<?> definedClass;
+                                try {
+                                    byte[] bytes = resource.getBytes();
+                                    definedClass = defineClass(name, bytes, 0, bytes.length, new CodeSource(base, new CodeSigner[]{}));
 //							if (DEBUG) System.out.println(">>>>>define class success: " + name);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                            throw new RuntimeException(e);
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                    throw new RuntimeException(e);
+                                }
+                                definePackageIfNecessary(name);
+                                return definedClass;
+                            }
+                        } else {
+                            if (DEBUG) System.out.println("url is null" + packageEntryName);
                         }
-                        definePackageIfNecessary(name);
-                        return definedClass;
                     }
-                } else {
-                    if (DEBUG) System.out.println("url is null" + packageEntryName);
                 }
-            }
-        }
 
-        if (this.exploded) {
-            return super.loadClass(name, resolve);
-        }
-        Handler.setUseFastConnectionExceptions(true);
-        try {
-            try {
-                definePackageIfNecessary(name);
-            }
-            catch (IllegalArgumentException ex) {
-                // Tolerate race condition due to being parallel capable
-                if (getPackage(name) == null) {
-                    // This should never happen as the IllegalArgumentException indicates
-                    // that the package has already been defined and, therefore,
-                    // getPackage(name) should not return null.
-                    throw new AssertionError("Package " + name + " has already been defined but it could not be found");
+                if (this.exploded) {
+                    return super.loadClass(name, resolve);
                 }
+                try {
+                    definePackageIfNecessary(name);
+                } catch (IllegalArgumentException ex) {
+                    // Tolerate race condition due to being parallel capable
+                    if (getPackage(name) == null) {
+                        // This should never happen as the IllegalArgumentException indicates
+                        // that the package has already been defined and, therefore,
+                        // getPackage(name) should not return null.
+                        throw new AssertionError("Package " + name + " has already been defined but it could not be found");
+                    }
+                }
+                return super.loadClass(name, resolve);
             }
-            return super.loadClass(name, resolve);
-        }
-        finally {
+        } finally {
             Handler.setUseFastConnectionExceptions(false);
         }
     }
@@ -303,12 +309,10 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
                 Class<?> definedClass = defineClass(name, bytes, 0, bytes.length);
                 definePackageIfNecessary(name);
                 return definedClass;
-            }
-            finally {
+            } finally {
                 inputStream.close();
             }
-        }
-        catch (IOException ex) {
+        } catch (IOException ex) {
             throw new ClassNotFoundException("Cannot load resource for class [" + name + "]", ex);
         }
     }
@@ -317,6 +321,7 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
      * Define a package before a {@code findClass} call is made. This is necessary to
      * ensure that the appropriate manifest for nested JARs is associated with the
      * package.
+     *
      * @param className the class name being found
      */
     private void definePackageIfNecessary(String className) {
@@ -326,8 +331,7 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
             if (getPackage(packageName) == null) {
                 try {
                     definePackage(className, packageName);
-                }
-                catch (IllegalArgumentException ex) {
+                } catch (IllegalArgumentException ex) {
                     // Tolerate race condition due to being parallel capable
                     if (getPackage(packageName) == null) {
                         // This should never happen as the IllegalArgumentException
@@ -357,15 +361,13 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
                                 return null;
                             }
                         }
-                    }
-                    catch (IOException ex) {
+                    } catch (IOException ex) {
                         // Ignore
                     }
                 }
                 return null;
             }, AccessController.getContext());
-        }
-        catch (java.security.PrivilegedActionException ex) {
+        } catch (java.security.PrivilegedActionException ex) {
             // Ignore
         }
     }
@@ -405,8 +407,7 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
     private Manifest getManifest(Archive archive) {
         try {
             return (archive != null) ? archive.getManifest() : null;
-        }
-        catch (IOException ex) {
+        } catch (IOException ex) {
             return null;
         }
     }
@@ -416,8 +417,7 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
         try {
             this.definePackageCallType = type;
             return call.get();
-        }
-        finally {
+        } finally {
             this.definePackageCallType = existingType;
         }
     }
@@ -435,8 +435,7 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
                 if (connection instanceof JarURLConnection) {
                     clearCache(connection);
                 }
-            }
-            catch (IOException ex) {
+            } catch (IOException ex) {
                 // Ignore
             }
         }
@@ -463,8 +462,7 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
             Handler.setUseFastConnectionExceptions(true);
             try {
                 return this.delegate.hasMoreElements();
-            }
-            finally {
+            } finally {
                 Handler.setUseFastConnectionExceptions(false);
             }
 
@@ -475,8 +473,7 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
             Handler.setUseFastConnectionExceptions(true);
             try {
                 return this.delegate.nextElement();
-            }
-            finally {
+            } finally {
                 Handler.setUseFastConnectionExceptions(false);
             }
         }

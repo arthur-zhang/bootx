@@ -1,7 +1,5 @@
 package com.seewo.psd.bootx.loader;
 
-import org.springframework.boot.loader.LaunchedURLClassLoader;
-
 import java.io.IOException;
 import java.net.URL;
 import java.util.Enumeration;
@@ -9,7 +7,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class CachedLaunchedURLClassLoader extends LaunchedURLClassLoader {
+public class CachedLaunchedURLClassLoader extends JarIndexLaunchedURLClassLoader {
 	static {
 		ClassLoader.registerAsParallelCapable();
 	}
