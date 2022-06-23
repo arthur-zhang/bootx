@@ -5,7 +5,7 @@
     <parent>
         <artifactId>boot-x</artifactId>
         <groupId>com.seewo.psd.bootx</groupId>
-        <version>0.1.0</version>
+        <version>0.1.1</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -24,7 +24,7 @@
         <dependency>
             <groupId>com.seewo.psd.bootx</groupId>
             <artifactId>bootx-loader</artifactId>
-            <version>0.1.0</version>
+            <version>0.1.1</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>

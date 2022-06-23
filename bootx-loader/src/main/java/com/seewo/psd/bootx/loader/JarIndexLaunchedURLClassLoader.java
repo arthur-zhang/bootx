@@ -158,6 +158,7 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
                 }
             }
         });
+        System.out.println("process jar index done, size= " + package2LoaderMap.size() + "\t" + res2LoaderMap.size());
     }
 
     private Map<String, URL> extracted(URL[] urls) {
