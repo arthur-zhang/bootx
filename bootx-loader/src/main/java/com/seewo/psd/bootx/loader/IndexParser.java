@@ -11,18 +11,18 @@ import java.util.Set;
 
 public class IndexParser {
     public static final String JAR_INDEX_VERSION = "1.0";
-    private static File JAR_INDEX_FILE = new File("./INDEX.LIST");
+
     public static final String JAR_INDEX_VERSION_KEY = "JarIndex-Version: ";
 
-    public static Map<String, Set<String>> indexListParser() throws IOException {
+    public static Map<String, Set<String>> indexListParser(File indexFile) throws IOException {
 
-        System.out.println("parseindex" + JAR_INDEX_FILE.getAbsolutePath());
-        if (!JAR_INDEX_FILE.exists()) {
+        System.out.println("parseindex" + indexFile.getAbsolutePath());
+        if (!indexFile.exists()) {
             return null;
         }
         LinkedHashMap<String, Set<String>> prefixes = new LinkedHashMap<>();
         // Parse INDEX.LIST if it exists
-        try (BufferedReader br = new BufferedReader(new FileReader(JAR_INDEX_FILE))) {
+        try (BufferedReader br = new BufferedReader(new FileReader(indexFile))) {
             // Must start with version info
             String line = br.readLine();
             if (!line.startsWith(JAR_INDEX_VERSION_KEY))

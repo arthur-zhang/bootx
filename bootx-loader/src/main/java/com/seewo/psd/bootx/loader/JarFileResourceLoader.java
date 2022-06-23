@@ -27,6 +27,16 @@ final class JarFileResourceLoader implements AutoCloseable {
         this.rootUrl = url;
     }
 
+    public URL getResource(final String fileName) {
+        URL url;
+        try {
+            url = new URL(rootUrl, fileName);
+            url.openConnection().connect();
+            return url;
+        } catch (Exception e) {
+        }
+        return null;
+    }
     public synchronized ClassSpec getClassSpec(final String fileName) throws IOException {
         final ClassSpec spec = new ClassSpec();
         final JarEntry entry = getJarEntry(fileName);

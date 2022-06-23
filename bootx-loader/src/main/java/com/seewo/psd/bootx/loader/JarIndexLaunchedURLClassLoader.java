@@ -21,6 +21,7 @@ import org.springframework.boot.loader.archive.Archive;
 import org.springframework.boot.loader.jar.Handler;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.JarURLConnection;
@@ -59,14 +60,14 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
 
     private volatile DefinePackageCallType definePackageCallType;
 
-    private static Map<String, Set<String>> prefixMap = null; // jarname to package
+
+    private static Map<String, List<JarFileResourceLoader>> package2LoaderMap = new ConcurrentHashMap<>();
+    private static Map<String, List<JarFileResourceLoader>> res2LoaderMap = new ConcurrentHashMap<>();
     private static boolean DEBUG = false;
+    private static File JAR_INDEX_FILE = new File("./INDEX.LIST");
+    private static File RES_INDEX_FILE = new File("./RES_INDEX.LIST");
 
     static {
-        try {
-            prefixMap = IndexParser.indexListParser();
-        } catch (IOException e) {
-        }
     }
 
     /**
@@ -103,15 +104,15 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
         super(urls, parent);
         this.exploded = exploded;
         this.rootArchive = rootArchive;
+        System.out.println(">>>in JarIndexLaunchedURLClassLoader");
         initJarIndex(urls);
     }
 
-    private static Map<String, List<JarFileResourceLoader>> package2LoaderMap;
 
     private void initJarIndex(URL[] urls) {
-
         Map<String, URL> urlMap = extracted(urls);
         Map<URL, JarFileResourceLoader> loaderMap = new HashMap<>();
+
         for (URL url : urls) {
             try {
                 URLConnection urlConnection = url.openConnection();
@@ -121,7 +122,14 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
             } catch (IOException e) {
             }
         }
-        package2LoaderMap = new ConcurrentHashMap<>();
+
+        Map<String, Set<String>> prefixMap = null; // jarname to package
+        try {
+            prefixMap = IndexParser.indexListParser(JAR_INDEX_FILE);
+        } catch (IOException e) {
+        }
+        if (prefixMap == null) return;
+
         prefixMap.forEach((jarName, packageNameSet) -> {
             URL url = urlMap.get(jarName);
             if (url == null) return;
@@ -129,6 +137,24 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
                 package2LoaderMap.putIfAbsent(pkgName, new ArrayList<>());
                 if (loaderMap.get(url) != null) {
                     package2LoaderMap.get(pkgName).add(loaderMap.get(url));
+                }
+            }
+        });
+
+        Map<String, Set<String>> jar2ResMap = null; // jar to resource
+        try {
+            jar2ResMap = IndexParser.indexListParser(RES_INDEX_FILE);
+        } catch (IOException e) {
+        }
+        if (jar2ResMap == null) return;
+
+        jar2ResMap.forEach((jarName, resNameSet) -> {
+            URL url = urlMap.get(jarName);
+            if (url == null) return;
+            for (String resName : resNameSet) {
+                res2LoaderMap.putIfAbsent(resName, new ArrayList<>());
+                if (loaderMap.get(url) != null) {
+                    res2LoaderMap.get(resName).add(loaderMap.get(url));
                 }
             }
         });
@@ -152,6 +178,15 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
 
     @Override
     public URL findResource(String name) {
+        List<JarFileResourceLoader> loaders = res2LoaderMap.get(name);
+        if (loaders != null && !loaders.isEmpty()) {
+            for (JarFileResourceLoader loader : loaders) {
+                URL ret = loader.getResource(name);
+                if (ret == null) continue;
+                return ret;
+            }
+        }
+
         if (this.exploded) {
             return super.findResource(name);
         }
@@ -165,6 +200,22 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
 
     @Override
     public Enumeration<URL> findResources(String name) throws IOException {
+        List<JarFileResourceLoader> loaders = res2LoaderMap.get(name);
+        if (loaders != null && !loaders.isEmpty()) {
+            List<URL> targetUrl = new ArrayList<>();
+            for (JarFileResourceLoader loader : loaders) {
+                try {
+                    URL ret = loader.getResource(name);
+                    if (ret == null) continue;
+                    targetUrl.add(ret);
+                } catch (Exception e) {
+                }
+            }
+            if (!targetUrl.isEmpty()) {
+                return Collections.enumeration(targetUrl);
+            }
+        }
+
         if (this.exploded) {
             return super.findResources(name);
         }
@@ -223,34 +274,10 @@ public class JarIndexLaunchedURLClassLoader extends URLClassLoader {
                                 }
                                 Class<?> definedClass = defineClass(name, classSpec.getBytes(), 0, classSpec.getBytes().length, classSpec.getCodeSource());
 //                                System.out.println(">>>>> define class done: " + "\t" + packageName + "\t" + path + "\t" + definedClass);
-
                                 definePackageIfNecessary(name);
                                 return definedClass;
                             }
                         }
-//                        List<URL> urls = package2UrlMap.get(packageEntryName);
-//                        if (DEBUG) System.out.println(">>>>jar list not null: " + name);
-//                        if (urls != null) {
-//                            if (DEBUG) System.out.println(">>>>urls not null: " + name);
-//                            for (int i = 0; i < urls.size(); i++) {
-//                                URL base = urls.get(i);
-//                                if (DEBUG)
-//                                    System.out.println(">>>>process url: " + base + "\t" + packageEntryName + "\t" + path);
-//                                ClassSpec classSpec = getClassSpec(base, path);
-//
-//                                if (classSpec == null) {
-//                                    System.out.println(">>>>> resource is null: " + base + "\t" + packageName + "\t" + path);
-//                                    continue;
-//                                }
-//                                Class<?> definedClass = defineClass(name, classSpec.getBytes(), 0, classSpec.getBytes().length, classSpec.getCodeSource());
-//                                System.out.println(">>>>> define class done: " + base + "\t" + packageName + "\t" + path + "\t" + definedClass);
-//
-//                                definePackageIfNecessary(name);
-//                                return definedClass;
-//                            }
-//                        } else {
-//                            if (DEBUG) System.out.println("url is null" + packageEntryName);
-//                        }
                     }
                 }
 
